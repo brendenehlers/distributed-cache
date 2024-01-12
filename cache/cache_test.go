@@ -1,8 +1,27 @@
 package cache
 
 import (
+	"math/rand"
 	"testing"
 )
+
+func BenchmarkInsert(b *testing.B) {
+	cache := New[int, int](Options{})
+
+	kvs := make(map[int]int)
+
+	keys := make([]int, 10000)
+	for _, key := range keys {
+		kvs[key] = rand.Intn(10000)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for k, v := range kvs {
+			cache.Insert(k, v)
+		}
+	}
+}
 
 func TestInsert(t *testing.T) {
 

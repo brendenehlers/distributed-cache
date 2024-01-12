@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
-	"hash"
+	"sync"
 )
 
 type Cache[K comparable, V any] interface {
@@ -27,7 +27,7 @@ type InMemoryCache[K comparable, V any] struct {
 	capacity          uint32
 	resizeThreshold   float32
 	resizeCoefficient uint32
-	h                 hash.Hash
+	mux               sync.RWMutex
 }
 
 type Options struct {
@@ -40,7 +40,7 @@ const DefaultCapacity = 1024
 const DefaultResizeCoefficient = 2
 const DefaultResizeThreshold = 0.75
 
-func New[K comparable, V any](options Options) InMemoryCache[K, V] {
+func New[K comparable, V any](options Options) *InMemoryCache[K, V] {
 	if options.Capacity == 0 {
 		options.Capacity = DefaultCapacity
 	}
@@ -51,13 +51,12 @@ func New[K comparable, V any](options Options) InMemoryCache[K, V] {
 		options.ResizeThreshold = DefaultResizeThreshold
 	}
 
-	cache := InMemoryCache[K, V]{
+	cache := &InMemoryCache[K, V]{
 		Size:              0,
 		cache:             make([]*cacheEntry[K, V], options.Capacity),
 		capacity:          options.Capacity,
 		resizeThreshold:   options.ResizeThreshold,
 		resizeCoefficient: options.ResizeCoefficient,
-		h:                 sha256.New(),
 	}
 
 	return cache
@@ -73,6 +72,7 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 
 	// find the value with the matching key
 	var x uint32 = 1
+	c.mux.RLock()
 	for entry := c.cache[index]; entry.Key != key; entry = c.cache[index] {
 		// iterated through the whole cache
 		if x == c.capacity {
@@ -80,7 +80,8 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 		}
 		// found a nil entry before the key
 		if entry == nil {
-			panic("Element not found")
+			var noop V
+			return noop, nil
 		}
 
 		// find the next index
@@ -89,6 +90,7 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 	}
 
 	entry := c.cache[index]
+	c.mux.RUnlock()
 
 	return entry.Val, nil
 }
@@ -107,6 +109,7 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 	// find the next open spot in the cache
 	initialHashIndex := index
 	var x uint32 = 1
+	c.mux.RLock()
 	for entry := c.cache[index]; entry != nil && entry.Key != key && !entry.Deleted; entry = c.cache[index] {
 		// there's no space in the cache
 		// this can happen if the resizeCoefficient is >= 1
@@ -119,11 +122,16 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 	}
 
 	entry := c.cache[index]
+	c.mux.RUnlock()
+
 	if entry != nil {
+		c.mux.Lock()
 		// update the existing entry
 		entry.Val = val
 		entry.Deleted = false
+		c.mux.Unlock()
 	} else {
+		c.mux.Lock()
 		// insert the new entry
 		c.cache[index] = &cacheEntry[K, V]{
 			Key:              key,
@@ -132,6 +140,7 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 			Deleted:          false,
 		}
 		c.Size += 1
+		c.mux.Unlock()
 	}
 
 	return nil
@@ -146,6 +155,7 @@ func (c *InMemoryCache[K, V]) Remove(key K) error {
 
 	// find the entry in the cache
 	var x uint32 = 1
+	c.mux.RLock()
 	for entry := c.cache[index]; entry != nil && entry.Key != key; entry = c.cache[index] {
 		// there's no space in the cache
 		// this can happen if the resizeCoefficient is >= 1
@@ -159,9 +169,13 @@ func (c *InMemoryCache[K, V]) Remove(key K) error {
 
 	// mark the entry as deleted
 	entry := c.cache[index]
+	c.mux.RUnlock()
+
 	if entry != nil {
+		c.mux.Lock()
 		entry.Deleted = true
 		c.Size -= 1
+		c.mux.Unlock()
 	}
 
 	return nil
@@ -183,10 +197,11 @@ func (c *InMemoryCache[K, V]) hash(key K) (uint32, error) {
 		return 0, err
 	}
 
-	c.h.Write(encoded)
-	hash := c.h.Sum(nil)
+	h := sha256.New()
+	h.Write(encoded)
+	hash := h.Sum(nil)
 	index := binary.BigEndian.Uint32(hash) % c.capacity
-	c.h.Reset()
+	h.Reset() // don't know if this is needed
 
 	return index, nil
 }
@@ -200,6 +215,7 @@ func (c *InMemoryCache[K, V]) increaseCacheSize() {
 	// create a new cache with the increased size
 	newCache := make([]*cacheEntry[K, V], c.resizeCoefficient*c.capacity)
 
+	c.mux.RLock()
 	// add the old values to the new cache
 	for _, oldCacheEntry := range c.cache {
 		// skip nil and deleted entries
@@ -218,7 +234,10 @@ func (c *InMemoryCache[K, V]) increaseCacheSize() {
 
 		newCache[index] = oldCacheEntry
 	}
+	c.mux.RUnlock()
 
+	c.mux.Lock()
 	// update the old cache to the new cache
 	c.cache = newCache
+	c.mux.Unlock()
 }
