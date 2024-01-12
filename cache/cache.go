@@ -15,10 +15,10 @@ type Cache[K comparable, V any] interface {
 }
 
 type cacheEntry[K comparable, V any] struct {
-	Key         K
-	Val         V
-	InitialHash uint32
-	Deleted     bool
+	Key              K
+	Val              V
+	InitialHashIndex uint32
+	Deleted          bool
 }
 
 type InMemoryCache[K comparable, V any] struct {
@@ -26,14 +26,14 @@ type InMemoryCache[K comparable, V any] struct {
 	cache             []*cacheEntry[K, V]
 	capacity          uint32
 	resizeThreshold   float32
-	resizeCoefficient uint16
+	resizeCoefficient uint32
 	h                 hash.Hash
 }
 
 type Options struct {
 	Capacity          uint32
 	ResizeThreshold   float32
-	ResizeCoefficient uint16
+	ResizeCoefficient uint32
 }
 
 const DefaultCapacity = 1024
@@ -72,7 +72,7 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 	}
 
 	// find the value with the matching key
-	var x uint32 = 0
+	var x uint32 = 1
 	for entry := c.cache[index]; entry.Key != key; entry = c.cache[index] {
 		// iterated through the whole cache
 		if x == c.capacity {
@@ -94,6 +94,10 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 }
 
 func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
+	if c.Size/int(c.capacity) >= int(c.resizeThreshold) {
+		c.increaseCacheSize()
+	}
+
 	// get the initial index
 	index, err := c.hash(key)
 	if err != nil {
@@ -102,17 +106,16 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 
 	// find the next open spot in the cache
 	initialHashIndex := index
-	var x uint32 = 0
-	for entry := c.cache[index]; entry != nil && entry.Key != key; entry = c.cache[index] {
+	var x uint32 = 1
+	for entry := c.cache[index]; entry != nil && entry.Key != key && !entry.Deleted; entry = c.cache[index] {
 		// there's no space in the cache
 		// this can happen if the resizeCoefficient is >= 1
 		if x == c.capacity {
 			panic("Cache capacity exceeded")
 		}
 		// find the next index
-		x += 1
 		index = (index + c.probing(x)) % c.capacity
-		entry = c.cache[index]
+		x += 1
 	}
 
 	entry := c.cache[index]
@@ -123,10 +126,10 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 	} else {
 		// insert the new entry
 		c.cache[index] = &cacheEntry[K, V]{
-			Key:         key,
-			Val:         val,
-			InitialHash: initialHashIndex,
-			Deleted:     false,
+			Key:              key,
+			Val:              val,
+			InitialHashIndex: initialHashIndex,
+			Deleted:          false,
 		}
 		c.Size += 1
 	}
@@ -135,7 +138,33 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 }
 
 func (c *InMemoryCache[K, V]) Remove(key K) error {
-	panic("not implemented")
+	// get the initial index
+	index, err := c.hash(key)
+	if err != nil {
+		return err
+	}
+
+	// find the entry in the cache
+	var x uint32 = 1
+	for entry := c.cache[index]; entry != nil && entry.Key != key; entry = c.cache[index] {
+		// there's no space in the cache
+		// this can happen if the resizeCoefficient is >= 1
+		if x == c.capacity {
+			panic("Cache capacity exceeded")
+		}
+		// find the next index
+		index = (index + c.probing(x)) % c.capacity
+		x += 1
+	}
+
+	// mark the entry as deleted
+	entry := c.cache[index]
+	if entry != nil {
+		entry.Deleted = true
+		c.Size -= 1
+	}
+
+	return nil
 }
 
 func (c *InMemoryCache[K, V]) encode(key K) ([]byte, error) {
@@ -165,4 +194,31 @@ func (c *InMemoryCache[K, V]) hash(key K) (uint32, error) {
 func (c *InMemoryCache[K, V]) probing(x uint32) uint32 {
 	// p(x) = x prevents propagation cycles
 	return x
+}
+
+func (c *InMemoryCache[K, V]) increaseCacheSize() {
+	// create a new cache with the increased size
+	newCache := make([]*cacheEntry[K, V], c.resizeCoefficient*c.capacity)
+
+	// add the old values to the new cache
+	for _, oldCacheEntry := range c.cache {
+		// skip nil and deleted entries
+		if oldCacheEntry == nil || oldCacheEntry.Deleted {
+			continue
+		}
+
+		index := oldCacheEntry.InitialHashIndex
+
+		// find the location in the new cache
+		var x uint32 = 1
+		for entry := newCache[index]; entry != nil; entry = newCache[index] {
+			index = (index + c.probing(x)) % c.capacity
+			x += 1
+		}
+
+		newCache[index] = oldCacheEntry
+	}
+
+	// update the old cache to the new cache
+	c.cache = newCache
 }

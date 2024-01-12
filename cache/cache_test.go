@@ -51,3 +51,30 @@ func TestRead(t *testing.T) {
 		}
 	}
 }
+
+func TestRemove(t *testing.T) {
+	cache := New[int, string](Options{})
+
+	kvs := make(map[int]string)
+	kvs[123] = "hello world 1"
+	kvs[234] = "hello world 2"
+	kvs[345] = "hello world 3"
+	kvs[456] = "hello world 4"
+
+	for k, v := range kvs {
+		if err := cache.Insert(k, v); err != nil {
+			t.Fatalf("TestRemove: failed on insert with err: %s\n", err)
+		}
+	}
+
+	for k := range kvs {
+		if err := cache.Remove(k); err != nil {
+			t.Fatalf("TestRemove: failed on remove with err: %s\n", err)
+		}
+	}
+
+	if cache.Size != 0 {
+		t.Fatal("Cache has non-zero size after removing all values")
+	}
+
+}
