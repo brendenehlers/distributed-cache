@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/brendenehlers/go-distributed-cache/cache"
+	"github.com/brendenehlers/go-distributed-cache/cache-node/cache"
 )
 
 func main() {
