@@ -7,28 +7,22 @@ import (
 	"github.com/brendenehlers/go-distributed-cache/cache-node/eventLoop"
 )
 
-type EventLoopHandler struct {
-	el *eventLoop.EventLoop
-}
-
 func NewServer() *http.Server {
-	h := http.NewServeMux()
 
-	elh := &EventLoopHandler{
-		el: eventLoop.New(),
-	}
+	elh := eventLoop.NewHandlerWithEventLoop()
 
-	h.HandleFunc("/get", elh.GetHandler)
-	h.HandleFunc("/set", elh.SetHandler)
-	h.HandleFunc("/delete", elh.DeleteHandler)
-	h.HandleFunc("/", invalidResponse)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/get", elh.GetHandler)
+	mux.HandleFunc("/set", elh.SetHandler)
+	mux.HandleFunc("/delete", elh.DeleteHandler)
+	mux.HandleFunc("/", elh.InvalidResponse)
 
 	// log incoming requests
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Request from %s: %s %s\n", r.RemoteAddr, r.Method, r.URL)
 		log.Printf("User Agent: %s\n", r.UserAgent())
 
-		h.ServeHTTP(w, r)
+		mux.ServeHTTP(w, r)
 	})
 
 	s := &http.Server{
@@ -37,40 +31,4 @@ func NewServer() *http.Server {
 	}
 
 	return s
-}
-
-func validateMethod(r *http.Request, method string) bool {
-	return r.Method == method
-}
-
-func (el *EventLoopHandler) GetHandler(w http.ResponseWriter, r *http.Request) {
-	if ok := validateMethod(r, http.MethodPost); !ok {
-		invalidResponse(w, r)
-		return
-	}
-
-	w.Write([]byte("Get handler"))
-}
-
-func (el *EventLoopHandler) SetHandler(w http.ResponseWriter, r *http.Request) {
-	if ok := validateMethod(r, http.MethodPost); !ok {
-		invalidResponse(w, r)
-		return
-	}
-
-	w.Write([]byte("Set handler"))
-}
-
-func (el *EventLoopHandler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
-	if ok := validateMethod(r, http.MethodPost); !ok {
-		invalidResponse(w, r)
-		return
-	}
-
-	w.Write([]byte("Delete handler"))
-}
-
-func invalidResponse(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusBadRequest)
-	w.Write([]byte("Invalid request"))
 }
