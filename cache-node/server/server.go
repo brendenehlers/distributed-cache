@@ -3,14 +3,24 @@ package server
 import (
 	"log"
 	"net/http"
+
+	"github.com/brendenehlers/go-distributed-cache/cache-node/eventLoop"
 )
+
+type EventLoopHandler struct {
+	el *eventLoop.EventLoop
+}
 
 func NewServer() *http.Server {
 	h := http.NewServeMux()
 
-	h.HandleFunc("/get", getHandler)
-	h.HandleFunc("/set", setHandler)
-	h.HandleFunc("/delete", deleteHandler)
+	elh := &EventLoopHandler{
+		el: eventLoop.New(),
+	}
+
+	h.HandleFunc("/get", elh.GetHandler)
+	h.HandleFunc("/set", elh.SetHandler)
+	h.HandleFunc("/delete", elh.DeleteHandler)
 	h.HandleFunc("/", invalidResponse)
 
 	// log incoming requests
@@ -33,7 +43,7 @@ func validateMethod(r *http.Request, method string) bool {
 	return r.Method == method
 }
 
-func getHandler(w http.ResponseWriter, r *http.Request) {
+func (el *EventLoopHandler) GetHandler(w http.ResponseWriter, r *http.Request) {
 	if ok := validateMethod(r, http.MethodPost); !ok {
 		invalidResponse(w, r)
 		return
@@ -42,7 +52,7 @@ func getHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Get handler"))
 }
 
-func setHandler(w http.ResponseWriter, r *http.Request) {
+func (el *EventLoopHandler) SetHandler(w http.ResponseWriter, r *http.Request) {
 	if ok := validateMethod(r, http.MethodPost); !ok {
 		invalidResponse(w, r)
 		return
@@ -51,7 +61,7 @@ func setHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Set handler"))
 }
 
-func deleteHandler(w http.ResponseWriter, r *http.Request) {
+func (el *EventLoopHandler) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	if ok := validateMethod(r, http.MethodPost); !ok {
 		invalidResponse(w, r)
 		return
