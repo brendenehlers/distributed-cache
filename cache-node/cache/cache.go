@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
+	"fmt"
 	"sync"
 )
 
@@ -63,17 +64,22 @@ func New[K comparable, V any](options Options) *InMemoryCache[K, V] {
 }
 
 func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
+	fmt.Println("Reading from cache")
+
 	// get the starting index
 	index, err := c.hash(key)
 	if err != nil {
-		var noop V
-		return noop, err
+		panic(err)
 	}
 
 	// find the value with the matching key
 	var x uint32 = 1
 	c.mux.RLock()
-	for entry := c.cache[index]; entry.Key != key; entry = c.cache[index] {
+	fmt.Println(index)
+	fmt.Println(key)
+	fmt.Println(c.cache[index])
+
+	for entry := c.cache[index]; entry == nil || entry.Key != key; entry = c.cache[index] {
 		// iterated through the whole cache
 		if x == c.capacity {
 			panic("Cache capacity reached")
@@ -81,7 +87,7 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 		// found a nil entry before the key
 		if entry == nil {
 			var noop V
-			return noop, nil
+			return noop, fmt.Errorf("Key not found")
 		}
 
 		// find the next index
