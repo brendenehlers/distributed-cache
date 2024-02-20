@@ -60,9 +60,9 @@ func TestRead(t *testing.T) {
 	}
 
 	for k := range kvs {
-		val, err := cache.Read(k)
-		if err != nil {
-			t.Fatalf("TestRead: failed on read with err: %s\n", err)
+		val, ok := cache.Read(k)
+		if !ok {
+			t.Fatalf("TestRead: failed on read ")
 		}
 
 		if mapVal := kvs[k]; val != mapVal {
