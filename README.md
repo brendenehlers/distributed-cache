@@ -1,4 +1,4 @@
-# Distributed Cache in Go
+# Distributed Cache in Go (WIP)
 
 Distributed cache project built entirely in Go.
 
