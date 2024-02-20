@@ -10,7 +10,7 @@ import (
 )
 
 type Cache[K comparable, V any] interface {
-	Read(key K) (V, error)
+	Read(key K) (V, bool)
 	Insert(key K, val V) error
 	Remove(key K) error
 }
@@ -63,8 +63,7 @@ func New[K comparable, V any](options Options) *InMemoryCache[K, V] {
 	return cache
 }
 
-func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
-	fmt.Println("Reading from cache")
+func (c *InMemoryCache[K, V]) Read(key K) (V, bool) {
 
 	// get the starting index
 	index, err := c.hash(key)
@@ -75,9 +74,7 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 	// find the value with the matching key
 	var x uint32 = 1
 	c.mux.RLock()
-	fmt.Println(index)
-	fmt.Println(key)
-	fmt.Println(c.cache[index])
+	defer c.mux.RUnlock()
 
 	for entry := c.cache[index]; entry == nil || entry.Key != key; entry = c.cache[index] {
 		// iterated through the whole cache
@@ -86,8 +83,9 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 		}
 		// found a nil entry before the key
 		if entry == nil {
+			fmt.Println("cache miss")
 			var noop V
-			return noop, fmt.Errorf("Key not found")
+			return noop, false
 		}
 
 		// find the next index
@@ -96,9 +94,9 @@ func (c *InMemoryCache[K, V]) Read(key K) (V, error) {
 	}
 
 	entry := c.cache[index]
-	c.mux.RUnlock()
+	fmt.Println("cache hit")
 
-	return entry.Val, nil
+	return entry.Val, true
 }
 
 func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
@@ -132,12 +130,13 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 
 	if entry != nil {
 		c.mux.Lock()
+		defer c.mux.Unlock()
 		// update the existing entry
 		entry.Val = val
 		entry.Deleted = false
-		c.mux.Unlock()
 	} else {
 		c.mux.Lock()
+		defer c.mux.Unlock()
 		// insert the new entry
 		c.cache[index] = &cacheEntry[K, V]{
 			Key:              key,
@@ -146,7 +145,6 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 			Deleted:          false,
 		}
 		c.Size += 1
-		c.mux.Unlock()
 	}
 
 	return nil

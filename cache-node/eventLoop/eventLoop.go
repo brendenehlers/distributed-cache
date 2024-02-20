@@ -41,9 +41,9 @@ func (el *EventLoop) Run() {
 				case "get":
 					fmt.Printf("Getting %s from the cache\n", e.Key)
 
-					val, err := el.cache.Read(string(e.Key))
-					if err != nil {
-						e.ErrorChan <- err
+					val, ok := el.cache.Read(string(e.Key))
+					if !ok {
+						e.ErrorChan <- fmt.Errorf("an error occurred while reading")
 					}
 
 					e.ResponseChan <- val
