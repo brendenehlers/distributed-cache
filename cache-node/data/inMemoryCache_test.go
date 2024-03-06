@@ -1,4 +1,4 @@
-package cache
+package data
 
 import (
 	"math/rand"
@@ -6,7 +6,7 @@ import (
 )
 
 func BenchmarkInsert(b *testing.B) {
-	cache := New[int, int](Options{})
+	cache := NewInMemoryCache[int, int](Options{})
 
 	kvs := make(map[int]int)
 
@@ -25,7 +25,7 @@ func BenchmarkInsert(b *testing.B) {
 
 func TestInsert(t *testing.T) {
 
-	cache := New[int, string](Options{})
+	cache := NewInMemoryCache[int, string](Options{})
 
 	kvs := make(map[int]string)
 	kvs[123] = "hello world 1"
@@ -45,7 +45,7 @@ func TestInsert(t *testing.T) {
 }
 
 func TestRead(t *testing.T) {
-	cache := New[int, string](Options{})
+	cache := NewInMemoryCache[int, string](Options{})
 
 	kvs := make(map[int]string)
 	kvs[123] = "hello world 1"
@@ -71,8 +71,8 @@ func TestRead(t *testing.T) {
 	}
 }
 
-func TestRemove(t *testing.T) {
-	cache := New[int, string](Options{})
+func TestDelete(t *testing.T) {
+	cache := NewInMemoryCache[int, string](Options{})
 
 	kvs := make(map[int]string)
 	kvs[123] = "hello world 1"

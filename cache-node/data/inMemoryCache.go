@@ -1,4 +1,4 @@
-package cache
+package data
 
 import (
 	"bytes"
@@ -8,12 +8,6 @@ import (
 	"fmt"
 	"sync"
 )
-
-type Cache[K comparable, V any] interface {
-	Read(key K) (V, bool)
-	Insert(key K, val V) error
-	Remove(key K) error
-}
 
 type cacheEntry[K comparable, V any] struct {
 	Key              K
@@ -41,7 +35,7 @@ const DefaultCapacity = 1024
 const DefaultResizeCoefficient = 2
 const DefaultResizeThreshold = 0.75
 
-func New[K comparable, V any](options Options) *InMemoryCache[K, V] {
+func NewInMemoryCache[K comparable, V any](options Options) *InMemoryCache[K, V] {
 	if options.Capacity == 0 {
 		options.Capacity = DefaultCapacity
 	}
