@@ -1,14 +1,14 @@
 package domain
 
-func GetEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
+func CreateGetEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
 	return newEvent("get", key, nil)
 }
 
-func SetEvent(key string, value CacheEntry) (event Event, responseChan chan EventResponse, errorChan chan error) {
+func CreateSetEvent(key string, value CacheEntry) (event Event, responseChan chan EventResponse, errorChan chan error) {
 	return newEvent("set", key, value)
 }
 
-func DeleteEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
+func CreateDeleteEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
 	return newEvent("delete", key, nil)
 }
 

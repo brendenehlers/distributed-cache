@@ -6,7 +6,7 @@ func TestGetEvent(t *testing.T) {
 	eventType := "get"
 	expected_key := "key"
 
-	event, _, _ := GetEvent(expected_key)
+	event, _, _ := CreateGetEvent(expected_key)
 
 	assertActualEqualExpected(t, event.Type, eventType)
 	assertActualEqualExpected(t, event.Key, expected_key)
@@ -18,7 +18,7 @@ func TestSetEvent(t *testing.T) {
 	expected_key := "key"
 	var expected_value CacheEntry = "value"
 
-	event, _, _ := SetEvent(expected_key, expected_value)
+	event, _, _ := CreateSetEvent(expected_key, expected_value)
 
 	assertActualEqualExpected(t, event.Type, eventType)
 	assertActualEqualExpected(t, event.Key, expected_key)
@@ -29,7 +29,7 @@ func TestDeleteEvent(t *testing.T) {
 	eventType := "delete"
 	expected_key := "key"
 
-	event, _, _ := DeleteEvent(expected_key)
+	event, _, _ := CreateDeleteEvent(expected_key)
 
 	assertActualEqualExpected(t, event.Type, eventType)
 	assertActualEqualExpected(t, event.Key, expected_key)

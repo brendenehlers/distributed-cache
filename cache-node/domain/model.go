@@ -15,7 +15,7 @@ type EventResponse struct {
 	Value CacheEntry
 }
 
-type EventLoop struct {
+type EventLoopImpl struct {
 	cache Cache
 	send  chan Event
 	quit  chan int

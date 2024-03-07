@@ -10,7 +10,7 @@ func TestGetValue(t *testing.T) {
 	value := "value"
 	eventLoop.cache.Set(key, value)
 
-	event, responseChan, errorChan := GetEvent(key)
+	event, responseChan, errorChan := CreateGetEvent(key)
 
 	go eventLoop.getValue(event)
 
@@ -38,7 +38,7 @@ func TestGetNoValue(t *testing.T) {
 	eventLoop := setup()
 	key := "test"
 
-	event, responseChan, errorChan := GetEvent(key)
+	event, responseChan, errorChan := CreateGetEvent(key)
 
 	go eventLoop.getValue(event)
 
@@ -61,7 +61,7 @@ func TestSetValue(t *testing.T) {
 	value := "value"
 	eventLoop.cache.Set(key, value)
 
-	event, responseChan, errorChan := SetEvent(key, value)
+	event, responseChan, errorChan := CreateSetEvent(key, value)
 
 	go eventLoop.setValue(event)
 
@@ -92,7 +92,7 @@ func TestDeleteValue(t *testing.T) {
 	value := "value"
 	eventLoop.cache.Set(key, value)
 
-	event, responseChan, errorChan := DeleteEvent(key)
+	event, responseChan, errorChan := CreateDeleteEvent(key)
 
 	go eventLoop.deleteValue(event)
 
@@ -132,7 +132,7 @@ func (mc *MockCache) Delete(key string) error {
 	return nil
 }
 
-func setup() *EventLoop {
+func setup() *EventLoopImpl {
 	mockCache := &MockCache{
 		cache: make(map[string]CacheEntry),
 	}

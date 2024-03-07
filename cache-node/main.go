@@ -60,4 +60,7 @@ func main() {
 	} else {
 		fmt.Printf("Cache value: %s", resp.Value)
 	}
+
+	// server := server.NewServer(loop, ":8080")
+	// server.StartServerAndLoop()
 }
