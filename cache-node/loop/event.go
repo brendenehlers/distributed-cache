@@ -1,4 +1,4 @@
-package domain
+package loop
 
 const (
 	GET_EVENT_KEY    = "get"

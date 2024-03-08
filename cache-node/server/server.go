@@ -7,21 +7,21 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/brendenehlers/go-distributed-cache/cache-node/domain"
+	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
 )
 
 type Server struct {
-	loop domain.EventLoop
+	loop loop.EventLoop
 	addr string
 }
 
 type Response struct {
-	Error   error             `json:"error"`
-	Message string            `json:"message"`
-	Value   domain.CacheEntry `json:"value"`
+	Error   error           `json:"error"`
+	Message string          `json:"message"`
+	Value   loop.CacheEntry `json:"value"`
 }
 
-func NewServer(loop domain.EventLoop, addr string) *Server {
+func NewServer(loop loop.EventLoop, addr string) *Server {
 	return &Server{
 		loop: loop,
 		addr: addr,
@@ -99,13 +99,13 @@ func buildErrorResponse(data any) Response {
 	}
 }
 
-func (server *Server) getHandler(r *http.Request) (domain.CacheEntry, bool) {
+func (server *Server) getHandler(r *http.Request) (loop.CacheEntry, bool) {
 	var data struct {
 		Key string `json:"key"`
 	}
 	readRequestBody(r.Body, &data)
 
-	event, responseChan, errorChan := domain.CreateGetEvent(data.Key)
+	event, responseChan, errorChan := loop.CreateGetEvent(data.Key)
 	go server.loop.Send(event)
 
 	select {
@@ -118,12 +118,12 @@ func (server *Server) getHandler(r *http.Request) (domain.CacheEntry, bool) {
 
 func (server *Server) setHandler(r *http.Request) bool {
 	var data struct {
-		Key   string            `json:"key"`
-		Value domain.CacheEntry `json:"value"`
+		Key   string          `json:"key"`
+		Value loop.CacheEntry `json:"value"`
 	}
 	readRequestBody(r.Body, &data)
 
-	event, responseChan, errorChan := domain.CreateSetEvent(data.Key, data.Value)
+	event, responseChan, errorChan := loop.CreateSetEvent(data.Key, data.Value)
 	go server.loop.Send(event)
 
 	select {
@@ -141,7 +141,7 @@ func (server *Server) deleteHandler(r *http.Request) bool {
 	}
 	readRequestBody(r.Body, &data)
 
-	event, responseChan, errorChan := domain.CreateDeleteEvent(data.Key)
+	event, responseChan, errorChan := loop.CreateDeleteEvent(data.Key)
 	go server.loop.Send(event)
 
 	select {
@@ -161,7 +161,7 @@ func readRequestBody(r io.ReadCloser, v any) {
 	}
 }
 
-func parseEventResponse(eventResponse domain.CacheEventResponse) (domain.CacheEntry, bool) {
+func parseEventResponse(eventResponse loop.CacheEventResponse) (loop.CacheEntry, bool) {
 	return eventResponse.Value, eventResponse.Ok
 }
 
@@ -182,7 +182,7 @@ func writeOkayResponse(w http.ResponseWriter) {
 	writeJson(w, resp)
 }
 
-func writeOkayResponseWithValue(w http.ResponseWriter, val domain.CacheEntry) {
+func writeOkayResponseWithValue(w http.ResponseWriter, val loop.CacheEntry) {
 	resp := Response{
 		Message: "Success",
 		Value:   val,

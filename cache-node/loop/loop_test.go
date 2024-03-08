@@ -1,4 +1,4 @@
-package domain
+package loop
 
 import (
 	"fmt"

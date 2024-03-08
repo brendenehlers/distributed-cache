@@ -4,19 +4,19 @@ import (
 	"fmt"
 
 	"github.com/brendenehlers/go-distributed-cache/cache-node/data"
-	"github.com/brendenehlers/go-distributed-cache/cache-node/domain"
+	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
 )
 
 // no reason for this other than I wanted to practice the adapter pattern
 type InMemoryCacheAdapter struct {
-	inMemoryCache *data.InMemoryCache[string, domain.CacheEntry]
+	inMemoryCache *data.InMemoryCache[string, loop.CacheEntry]
 }
 
-func (adapter *InMemoryCacheAdapter) Get(key string) (domain.CacheEntry, bool) {
+func (adapter *InMemoryCacheAdapter) Get(key string) (loop.CacheEntry, bool) {
 	return adapter.inMemoryCache.Read(key)
 }
 
-func (adapter *InMemoryCacheAdapter) Set(key string, val domain.CacheEntry) error {
+func (adapter *InMemoryCacheAdapter) Set(key string, val loop.CacheEntry) error {
 	return adapter.inMemoryCache.Insert(key, val)
 }
 
@@ -24,7 +24,7 @@ func (adapter *InMemoryCacheAdapter) Delete(key string) error {
 	return adapter.inMemoryCache.Remove(key)
 }
 
-func NewInMemoryCacheAdapter(cache *data.InMemoryCache[string, domain.CacheEntry]) domain.Cache {
+func NewInMemoryCacheAdapter(cache *data.InMemoryCache[string, loop.CacheEntry]) loop.Cache {
 	return &InMemoryCacheAdapter{
 		inMemoryCache: cache,
 	}
@@ -32,14 +32,14 @@ func NewInMemoryCacheAdapter(cache *data.InMemoryCache[string, domain.CacheEntry
 
 func main() {
 
-	inMemoryCache := data.NewInMemoryCache[string, domain.CacheEntry](data.Options{})
+	inMemoryCache := data.NewInMemoryCache[string, loop.CacheEntry](data.Options{})
 	cache := NewInMemoryCacheAdapter(inMemoryCache)
-	loop := domain.NewEventLoop(cache)
+	eventLoop := loop.NewEventLoop(cache)
 
-	go loop.Run()
+	go eventLoop.Run()
 
-	event1, resChan1, errChan1 := domain.CreateSetEvent("hello", "world")
-	loop.Send(event1)
+	event1, resChan1, errChan1 := loop.CreateSetEvent("hello", "world")
+	eventLoop.Send(event1)
 
 	select {
 	case resp := <-resChan1:
@@ -48,8 +48,8 @@ func main() {
 		panic(err)
 	}
 
-	event2, resChan2, errChan2 := domain.CreateGetEvent("hello")
-	loop.Send(event2)
+	event2, resChan2, errChan2 := loop.CreateGetEvent("hello")
+	eventLoop.Send(event2)
 
 	select {
 	case resp := <-resChan2:

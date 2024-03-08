@@ -1,4 +1,4 @@
-package domain
+package loop
 
 const (
 	DEFAULT_EVENTS_CHANNEL_CAP = 50
