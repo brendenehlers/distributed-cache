@@ -1,4 +1,4 @@
-package presentation
+package server
 
 import (
 	"encoding/json"
@@ -11,7 +11,7 @@ import (
 )
 
 type Server struct {
-	loop loop.EventLoop
+	loop EventLoop
 	addr string
 }
 
@@ -21,7 +21,7 @@ type Response struct {
 	Value   loop.CacheEntry `json:"value"`
 }
 
-func NewServer(loop loop.EventLoop, addr string) *Server {
+func NewServer(loop EventLoop, addr string) *Server {
 	return &Server{
 		loop: loop,
 		addr: addr,
