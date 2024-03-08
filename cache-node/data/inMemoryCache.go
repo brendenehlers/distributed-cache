@@ -36,6 +36,13 @@ const DefaultResizeCoefficient = 2
 const DefaultResizeThreshold = 0.75
 
 func NewInMemoryCache[K comparable, V any](options Options) *InMemoryCache[K, V] {
+	options = assignDefaultOptions[K, V](options)
+	cache := buildCache[K, V](options)
+
+	return cache
+}
+
+func assignDefaultOptions[K comparable, V any](options Options) Options {
 	if options.Capacity == 0 {
 		options.Capacity = DefaultCapacity
 	}
@@ -46,57 +53,21 @@ func NewInMemoryCache[K comparable, V any](options Options) *InMemoryCache[K, V]
 		options.ResizeThreshold = DefaultResizeThreshold
 	}
 
-	cache := &InMemoryCache[K, V]{
+	return options
+}
+
+func buildCache[K comparable, V any](options Options) *InMemoryCache[K, V] {
+	return &InMemoryCache[K, V]{
 		Size:              0,
 		cache:             make([]*cacheEntry[K, V], options.Capacity),
 		capacity:          options.Capacity,
 		resizeThreshold:   options.ResizeThreshold,
 		resizeCoefficient: options.ResizeCoefficient,
 	}
-
-	return cache
-}
-
-func (c *InMemoryCache[K, V]) Read(key K) (V, bool) {
-
-	// get the starting index
-	index, err := c.hash(key)
-	if err != nil {
-		panic(err)
-	}
-
-	// find the value with the matching key
-	var x uint32 = 1
-	c.mux.RLock()
-	defer c.mux.RUnlock()
-
-	for entry := c.cache[index]; entry == nil || entry.Key != key; entry = c.cache[index] {
-		// iterated through the whole cache
-		if x == c.capacity {
-			panic("Cache capacity reached")
-		}
-		// found a nil entry before the key
-		if entry == nil {
-			fmt.Println("cache miss")
-			var noop V
-			return noop, false
-		}
-
-		// find the next index
-		index = (index + c.probing(x)) % c.capacity
-		x += 1
-	}
-
-	entry := c.cache[index]
-	fmt.Println("cache hit")
-
-	return entry.Val, true
 }
 
 func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
-	if c.Size/int(c.capacity) >= int(c.resizeThreshold) {
-		c.increaseCacheSize()
-	}
+	c.checkCacheSize()
 
 	// get the initial index
 	index, err := c.hash(key)
@@ -106,42 +77,120 @@ func (c *InMemoryCache[K, V]) Insert(key K, val V) error {
 
 	// find the next open spot in the cache
 	initialHashIndex := index
+	index = c.findNextEmptySpotInCache(key, index)
+	entry := c.cache[index]
+
+	if entry != nil {
+		c.updateCacheEntry(entry, val)
+	} else {
+		c.insertNewCacheEntry(index, c.createNewCacheEntry(key, val, initialHashIndex))
+	}
+
+	return nil
+}
+
+func (c *InMemoryCache[K, V]) checkCacheSize() {
+	if c.Size/int(c.capacity) >= int(c.resizeThreshold) {
+		c.increaseCacheSize()
+	}
+}
+
+func (c *InMemoryCache[K, V]) increaseCacheSize() {
+	newCache := c.createLargerCache()
+	newCache = c.copyValuesToLargerCache(newCache)
+	c.setCache(newCache)
+}
+
+func (c *InMemoryCache[K, V]) createLargerCache() []*cacheEntry[K, V] {
+	return make([]*cacheEntry[K, V], c.resizeCoefficient*c.capacity)
+}
+
+func (c *InMemoryCache[K, V]) copyValuesToLargerCache(newCache []*cacheEntry[K, V]) []*cacheEntry[K, V] {
+	c.mux.RLock()
+	defer c.mux.RUnlock()
+	// add the old values to the new cache
+	for _, oldCacheEntry := range c.cache {
+		// skip nil and deleted entries
+		if oldCacheEntry == nil || oldCacheEntry.Deleted {
+			continue
+		}
+
+		index := oldCacheEntry.InitialHashIndex
+
+		// find the location in the new cache
+		var x uint32 = 1
+		for entry := newCache[index]; entry != nil; entry = newCache[index] {
+			index = (index + c.probing(x)) % c.capacity
+			x += 1
+		}
+
+		newCache[index] = oldCacheEntry
+	}
+
+	return newCache
+}
+
+func (c *InMemoryCache[K, V]) setCache(newCache []*cacheEntry[K, V]) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	c.cache = newCache
+}
+
+func (c *InMemoryCache[K, V]) findNextEmptySpotInCache(key K, index uint32) uint32 {
 	var x uint32 = 1
 	c.mux.RLock()
+	defer c.mux.RUnlock()
 	for entry := c.cache[index]; entry != nil && entry.Key != key && !entry.Deleted; entry = c.cache[index] {
-		// there's no space in the cache
-		// this can happen if the resizeCoefficient is >= 1
-		if x == c.capacity {
-			panic("Cache capacity exceeded")
-		}
+		c.checkCapacity(x)
+
 		// find the next index
 		index = (index + c.probing(x)) % c.capacity
 		x += 1
 	}
 
-	entry := c.cache[index]
-	c.mux.RUnlock()
+	return index
+}
 
-	if entry != nil {
-		c.mux.Lock()
-		defer c.mux.Unlock()
-		// update the existing entry
-		entry.Val = val
-		entry.Deleted = false
-	} else {
-		c.mux.Lock()
-		defer c.mux.Unlock()
-		// insert the new entry
-		c.cache[index] = &cacheEntry[K, V]{
-			Key:              key,
-			Val:              val,
-			InitialHashIndex: initialHashIndex,
-			Deleted:          false,
-		}
-		c.Size += 1
+func (c *InMemoryCache[K, V]) updateCacheEntry(entry *cacheEntry[K, V], val V) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	// update the existing entry
+	entry.Val = val
+	entry.Deleted = false
+}
+
+func (c *InMemoryCache[K, V]) insertNewCacheEntry(index uint32, entry *cacheEntry[K, V]) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	// insert the new entry
+	c.cache[index] = entry
+	c.Size += 1
+}
+
+func (c *InMemoryCache[K, V]) createNewCacheEntry(key K, val V, initialHashIndex uint32) *cacheEntry[K, V] {
+	return &cacheEntry[K, V]{
+		Key:              key,
+		Val:              val,
+		InitialHashIndex: initialHashIndex,
+		Deleted:          false,
+	}
+}
+
+func (c *InMemoryCache[K, V]) Read(key K) (V, bool) {
+	// get the starting index
+	index, err := c.hash(key)
+	if err != nil {
+		panic(err)
 	}
 
-	return nil
+	entry := c.findValueInCache(key, index)
+
+	if entry != nil {
+		return entry.Val, true
+	} else {
+		var noop V
+		return noop, false
+	}
 }
 
 func (c *InMemoryCache[K, V]) Remove(key K) error {
@@ -151,32 +200,52 @@ func (c *InMemoryCache[K, V]) Remove(key K) error {
 		return err
 	}
 
-	// find the entry in the cache
+	entry := c.findValueInCache(key, index)
+
+	if entry != nil {
+		c.deleteEntry(entry)
+	}
+
+	return nil
+}
+
+func (c *InMemoryCache[K, V]) findValueInCache(key K, index uint32) *cacheEntry[K, V] {
+	// find the value with the matching key
 	var x uint32 = 1
 	c.mux.RLock()
-	for entry := c.cache[index]; entry != nil && entry.Key != key; entry = c.cache[index] {
-		// there's no space in the cache
-		// this can happen if the resizeCoefficient is >= 1
-		if x == c.capacity {
-			panic("Cache capacity exceeded")
+	defer c.mux.RUnlock()
+
+	for entry := c.cache[index]; entry == nil || entry.Key != key; entry = c.cache[index] {
+		c.checkCapacity(x)
+
+		// found a nil entry before the key
+		if entry == nil {
+			fmt.Println("cache miss")
+			return nil
 		}
+
 		// find the next index
 		index = (index + c.probing(x)) % c.capacity
 		x += 1
 	}
 
-	// mark the entry as deleted
-	entry := c.cache[index]
-	c.mux.RUnlock()
+	fmt.Println("cache hit")
+	return c.cache[index]
+}
 
-	if entry != nil {
-		c.mux.Lock()
-		entry.Deleted = true
-		c.Size -= 1
-		c.mux.Unlock()
+func (c *InMemoryCache[K, V]) deleteEntry(entry *cacheEntry[K, V]) {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	entry.Deleted = true
+	c.Size -= 1
+}
+
+func (c *InMemoryCache[K, V]) checkCapacity(x uint32) {
+	// there's no space in the cache
+	// this can happen if the resizeCoefficient is >= 1
+	if x >= c.capacity {
+		panic("Cache capacity reached")
 	}
-
-	return nil
 }
 
 func (c *InMemoryCache[K, V]) encode(key K) ([]byte, error) {
@@ -207,35 +276,4 @@ func (c *InMemoryCache[K, V]) hash(key K) (uint32, error) {
 func (c *InMemoryCache[K, V]) probing(x uint32) uint32 {
 	// p(x) = x prevents propagation cycles
 	return x
-}
-
-func (c *InMemoryCache[K, V]) increaseCacheSize() {
-	// create a new cache with the increased size
-	newCache := make([]*cacheEntry[K, V], c.resizeCoefficient*c.capacity)
-
-	c.mux.RLock()
-	// add the old values to the new cache
-	for _, oldCacheEntry := range c.cache {
-		// skip nil and deleted entries
-		if oldCacheEntry == nil || oldCacheEntry.Deleted {
-			continue
-		}
-
-		index := oldCacheEntry.InitialHashIndex
-
-		// find the location in the new cache
-		var x uint32 = 1
-		for entry := newCache[index]; entry != nil; entry = newCache[index] {
-			index = (index + c.probing(x)) % c.capacity
-			x += 1
-		}
-
-		newCache[index] = oldCacheEntry
-	}
-	c.mux.RUnlock()
-
-	c.mux.Lock()
-	// update the old cache to the new cache
-	c.cache = newCache
-	c.mux.Unlock()
 }

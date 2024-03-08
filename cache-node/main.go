@@ -38,29 +38,38 @@ func main() {
 
 	go loop.Run()
 
-	responseChan := make(chan domain.EventResponse)
+	responseChan := make(chan domain.CacheEventResponse)
 	errorChan := make(chan error)
 
-	loop.Send(domain.Event{
-		Type:      "set",
-		Key:       "hello",
-		Val:       "world",
-		ErrorChan: errorChan,
+	loop.Send(&domain.CacheEvent{
+		Type:         "set",
+		Key:          "hello",
+		Val:          "world",
+		ResponseChan: responseChan,
+		ErrorChan:    errorChan,
 	})
 
-	loop.Send(domain.Event{
+	select {
+	case resp := <-responseChan:
+		fmt.Printf("set ok: %v, val: %v\n", resp.Ok, resp.Value)
+	case err := <-errorChan:
+		panic(err)
+	}
+
+	loop.Send(&domain.CacheEvent{
 		Type:         "get",
 		Key:          "hello",
 		ResponseChan: responseChan,
 		ErrorChan:    errorChan,
 	})
 
-	if resp := <-responseChan; !resp.Ok {
-		fmt.Println("error occurred when fetching value")
-	} else {
-		fmt.Printf("Cache value: %s", resp.Value)
+	select {
+	case resp := <-responseChan:
+		fmt.Printf("get ok: %v, val: %v\n", resp.Ok, resp.Value)
+	case err := <-errorChan:
+		panic(err)
 	}
 
-	// server := server.NewServer(loop, ":8080")
+	// server := presentation.NewServer(loop, ":8080")
 	// server.StartServerAndLoop()
 }

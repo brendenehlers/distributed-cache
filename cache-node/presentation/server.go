@@ -1,4 +1,4 @@
-package server
+package presentation
 
 import (
 	"encoding/json"
@@ -161,7 +161,7 @@ func readRequestBody(r io.ReadCloser, v any) {
 	}
 }
 
-func parseEventResponse(eventResponse domain.EventResponse) (domain.CacheEntry, bool) {
+func parseEventResponse(eventResponse domain.CacheEventResponse) (domain.CacheEntry, bool) {
 	return eventResponse.Value, eventResponse.Ok
 }
 

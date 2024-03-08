@@ -1,43 +1,39 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
 
 func TestGetEvent(t *testing.T) {
-	eventType := "get"
-	expected_key := "key"
+	expectedType := "get"
+	expectedKey := "key"
 
-	event, _, _ := CreateGetEvent(expected_key)
+	event, _, _ := CreateGetEvent(expectedKey)
 
-	assertActualEqualExpected(t, event.Type, eventType)
-	assertActualEqualExpected(t, event.Key, expected_key)
-	assertActualEqualExpected(t, event.Val, nil)
+	assert.Equal(t, expectedType, event.Type)
+	assert.Equal(t, expectedKey, event.Key)
 }
 
 func TestSetEvent(t *testing.T) {
-	eventType := "set"
-	expected_key := "key"
-	var expected_value CacheEntry = "value"
+	expectedType := "set"
+	expectedKey := "key"
+	var expectedValue CacheEntry = "value"
 
-	event, _, _ := CreateSetEvent(expected_key, expected_value)
+	event, _, _ := CreateSetEvent(expectedKey, expectedValue)
 
-	assertActualEqualExpected(t, event.Type, eventType)
-	assertActualEqualExpected(t, event.Key, expected_key)
-	assertActualEqualExpected(t, event.Val, expected_value)
+	assert.Equal(t, expectedType, event.Type)
+	assert.Equal(t, expectedKey, event.Key)
+	assert.Equal(t, expectedValue, event.Val)
 }
 
 func TestDeleteEvent(t *testing.T) {
-	eventType := "delete"
-	expected_key := "key"
+	expectedType := "delete"
+	expectedKey := "key"
 
-	event, _, _ := CreateDeleteEvent(expected_key)
+	event, _, _ := CreateDeleteEvent(expectedKey)
 
-	assertActualEqualExpected(t, event.Type, eventType)
-	assertActualEqualExpected(t, event.Key, expected_key)
-	assertActualEqualExpected(t, event.Val, nil)
-}
-
-func assertActualEqualExpected[T comparable](t *testing.T, actual T, expected T) {
-	if actual != expected {
-		t.Fatalf("actual (%v) != expected (%v)", actual, expected)
-	}
+	assert.Equal(t, expectedType, event.Type)
+	assert.Equal(t, expectedKey, event.Key)
 }

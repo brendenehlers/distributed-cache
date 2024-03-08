@@ -1,5 +1,7 @@
 package domain
 
+type CacheEntry any
+
 type Cache interface {
 	Get(key string) (CacheEntry, bool)
 	Set(key string, val CacheEntry) error
@@ -8,5 +10,6 @@ type Cache interface {
 
 type EventLoop interface {
 	Run()
-	Send(event Event)
+	Send(event *CacheEvent)
+	Stop()
 }

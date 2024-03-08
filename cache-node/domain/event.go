@@ -1,21 +1,40 @@
 package domain
 
-func CreateGetEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
-	return newEvent("get", key, nil)
+const (
+	GET_EVENT_KEY    = "get"
+	SET_EVENT_KEY    = "set"
+	DELETE_EVENT_KEY = "delete"
+)
+
+type CacheEvent struct {
+	Type         string
+	Key          string
+	Val          CacheEntry
+	ResponseChan chan CacheEventResponse
+	ErrorChan    chan error
 }
 
-func CreateSetEvent(key string, value CacheEntry) (event Event, responseChan chan EventResponse, errorChan chan error) {
-	return newEvent("set", key, value)
+type CacheEventResponse struct {
+	Ok    bool
+	Value CacheEntry
 }
 
-func CreateDeleteEvent(key string) (event Event, responseChan chan EventResponse, errorChan chan error) {
-	return newEvent("delete", key, nil)
+func CreateGetEvent(key string) (event *CacheEvent, responseChan chan CacheEventResponse, errorChan chan error) {
+	return newEvent(GET_EVENT_KEY, key, nil)
 }
 
-func newEvent(eventType string, key string, value CacheEntry) (event Event, responseChan chan EventResponse, errorChan chan error) {
-	responseChan = make(chan EventResponse)
-	errorChan = make(chan error)
-	event = Event{
+func CreateSetEvent(key string, value CacheEntry) (event *CacheEvent, responseChan chan CacheEventResponse, errorChan chan error) {
+	return newEvent(SET_EVENT_KEY, key, value)
+}
+
+func CreateDeleteEvent(key string) (event *CacheEvent, responseChan chan CacheEventResponse, errorChan chan error) {
+	return newEvent(DELETE_EVENT_KEY, key, nil)
+}
+
+func newEvent(eventType string, key string, value CacheEntry) (event *CacheEvent, responseChan chan CacheEventResponse, errorChan chan error) {
+	responseChan = make(chan CacheEventResponse, 1)
+	errorChan = make(chan error, 1)
+	event = &CacheEvent{
 		Type:         eventType,
 		Key:          key,
 		Val:          value,
