@@ -38,35 +38,23 @@ func main() {
 
 	go loop.Run()
 
-	responseChan := make(chan domain.CacheEventResponse)
-	errorChan := make(chan error)
-
-	loop.Send(&domain.CacheEvent{
-		Type:         "set",
-		Key:          "hello",
-		Val:          "world",
-		ResponseChan: responseChan,
-		ErrorChan:    errorChan,
-	})
+	event1, resChan1, errChan1 := domain.CreateSetEvent("hello", "world")
+	loop.Send(event1)
 
 	select {
-	case resp := <-responseChan:
+	case resp := <-resChan1:
 		fmt.Printf("set ok: %v, val: %v\n", resp.Ok, resp.Value)
-	case err := <-errorChan:
+	case err := <-errChan1:
 		panic(err)
 	}
 
-	loop.Send(&domain.CacheEvent{
-		Type:         "get",
-		Key:          "hello",
-		ResponseChan: responseChan,
-		ErrorChan:    errorChan,
-	})
+	event2, resChan2, errChan2 := domain.CreateGetEvent("hello")
+	loop.Send(event2)
 
 	select {
-	case resp := <-responseChan:
+	case resp := <-resChan2:
 		fmt.Printf("get ok: %v, val: %v\n", resp.Ok, resp.Value)
-	case err := <-errorChan:
+	case err := <-errChan2:
 		panic(err)
 	}
 

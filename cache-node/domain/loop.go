@@ -8,18 +8,18 @@ const (
 	KILL_CODE            = 1
 )
 
+type EventLoopImpl struct {
+	cache  Cache
+	events chan *CacheEvent
+	quit   chan int
+}
+
 func NewEventLoop(cache Cache) *EventLoopImpl {
 	return &EventLoopImpl{
 		cache:  cache,
 		events: make(chan *CacheEvent, DEFAULT_EVENTS_CHANNEL_CAP),
 		quit:   make(chan int, DEFAULT_QUIT_CHANNEL_CAP),
 	}
-}
-
-type EventLoopImpl struct {
-	cache  Cache
-	events chan *CacheEvent
-	quit   chan int
 }
 
 func (eventLoop *EventLoopImpl) Send(event *CacheEvent) {
@@ -31,8 +31,7 @@ func (eventLoop *EventLoopImpl) Stop() {
 }
 
 func (eventLoop *EventLoopImpl) Run() {
-	// this function is untested
-	// but the component methods are well tested, so I figure it's alright
+	// this function is untested but the component methods are well tested
 	for {
 		code := eventLoop.multiplexChannels()
 
@@ -71,40 +70,23 @@ func (eventLoop *EventLoopImpl) handleEvent(event *CacheEvent) {
 
 func (eventLoop *EventLoopImpl) handleGetEvent(event *CacheEvent) {
 	value, ok := eventLoop.cache.Get(event.Key)
-	sendResponseOnResponseChan(event.ResponseChan, ok, value)
+	event.sendResponse(createEventResponse(ok, value))
 }
 
 func (eventLoop *EventLoopImpl) handleSetEvent(event *CacheEvent) {
 	err := eventLoop.cache.Set(event.Key, event.Val)
 	if err != nil {
-		sendError(event.ErrorChan, err)
+		event.sendError(err)
 		return
 	}
-
-	sendResponseOnResponseChan(event.ResponseChan, true, nil)
+	event.sendResponse(createEventResponse(true, nil))
 }
 
 func (eventLoop *EventLoopImpl) handleDeleteEvent(event *CacheEvent) {
 	err := eventLoop.cache.Delete(event.Key)
 	if err != nil {
-		sendError(event.ErrorChan, err)
+		event.sendError(err)
 		return
 	}
-
-	sendResponseOnResponseChan(event.ResponseChan, true, nil)
-}
-
-func sendError(channel chan error, err error) {
-	channel <- err
-}
-
-func sendResponseOnResponseChan(channel chan CacheEventResponse, ok bool, value CacheEntry) {
-	channel <- createEventResponse(ok, value)
-}
-
-func createEventResponse(ok bool, value CacheEntry) CacheEventResponse {
-	return CacheEventResponse{
-		Ok:    ok,
-		Value: value,
-	}
+	event.sendResponse(createEventResponse(true, nil))
 }
