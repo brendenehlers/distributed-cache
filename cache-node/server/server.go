@@ -11,8 +11,8 @@ import (
 )
 
 type Server struct {
+	http.Server
 	loop EventLoop
-	addr string
 }
 
 type Response struct {
@@ -22,10 +22,19 @@ type Response struct {
 }
 
 func NewServer(loop EventLoop, addr string) *Server {
+	mux := createMux(loop)
+
 	return &Server{
+		Server: http.Server{
+			Addr:    addr,
+			Handler: mux,
+		},
 		loop: loop,
-		addr: addr,
 	}
+}
+
+func createMux(loop EventLoop) http.Handler {
+	return http.NewServeMux()
 }
 
 func (server *Server) StartServerAndLoop() {
@@ -67,8 +76,6 @@ func (server *Server) StartServerAndLoop() {
 		mux.ServeHTTP(w, r)
 	})
 
-	go server.loop.Run()
-	log.Fatal(http.ListenAndServe(server.addr, logger))
 }
 
 func errorCatcher(w http.ResponseWriter) {
