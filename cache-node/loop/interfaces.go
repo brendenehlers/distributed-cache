@@ -7,9 +7,3 @@ type Cache interface {
 	Set(key string, val CacheEntry) error
 	Delete(key string) error
 }
-
-type EventLoop interface {
-	Run()
-	Send(event *CacheEvent)
-	Stop()
-}

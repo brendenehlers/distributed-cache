@@ -10,8 +10,8 @@ type CacheEvent struct {
 	Type         string
 	Key          string
 	Val          CacheEntry
-	responseChan chan CacheEventResponse
-	errorChan    chan error
+	ResponseChan chan CacheEventResponse
+	ErrorChan    chan error
 }
 
 type CacheEventResponse struct {
@@ -38,8 +38,8 @@ func newEvent(eventType string, key string, value CacheEntry) (event *CacheEvent
 		Type:         eventType,
 		Key:          key,
 		Val:          value,
-		responseChan: responseChan,
-		errorChan:    errorChan,
+		ResponseChan: responseChan,
+		ErrorChan:    errorChan,
 	}
 
 	return event, responseChan, errorChan
@@ -53,9 +53,9 @@ func createEventResponse(ok bool, value CacheEntry) CacheEventResponse {
 }
 
 func (event *CacheEvent) sendResponse(resp CacheEventResponse) {
-	event.responseChan <- resp
+	event.ResponseChan <- resp
 }
 
 func (event *CacheEvent) sendError(err error) {
-	event.errorChan <- err
+	event.ErrorChan <- err
 }
