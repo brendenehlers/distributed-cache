@@ -43,9 +43,37 @@ type Response struct {
 // 	}
 // }
 
-func decodeRequestBody(r io.ReadCloser, data *RequestBody) error {
-	defer r.Close()
-	return json.NewDecoder(r).Decode(data)
+func (s *Server) handleGet(key string) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateGetEvent(key)
+
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
+
+	return resp, nil
+}
+
+func (s *Server) handleSet(key string, value loop.CacheEntry) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateSetEvent(key, value)
+
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
+
+	return resp, nil
+}
+
+func (s *Server) handleDelete(key string) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateDeleteEvent(key)
+
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
+
+	return resp, nil
 }
 
 func (s *Server) sendEvent(
@@ -61,4 +89,9 @@ func (s *Server) sendEvent(
 	case err := <-errChan:
 		return loop.CacheEventResponse{}, err
 	}
+}
+
+func decodeRequestBody(r io.ReadCloser, data *RequestBody) error {
+	defer r.Close()
+	return json.NewDecoder(r).Decode(data)
 }

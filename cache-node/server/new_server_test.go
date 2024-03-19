@@ -12,7 +12,9 @@ import (
 )
 
 const (
+	SUCCESS_KEY   = "success"
 	SUCCESS_VALUE = "my value"
+	ERROR_KEY     = "error"
 )
 
 type MockEventLoop struct {
@@ -22,16 +24,28 @@ type MockEventLoop struct {
 func (el *MockEventLoop) Send(event *loop.CacheEvent) {
 	el.events <- event
 
-	if event.Key == "success" {
+	if event.Key == SUCCESS_KEY {
 		<-el.events
-		event.ResponseChan <- loop.CacheEventResponse{
-			Ok:    true,
-			Value: SUCCESS_VALUE,
+		switch event.Type {
+		case loop.GET_EVENT_KEY:
+			event.ResponseChan <- loop.CacheEventResponse{
+				Ok:    true,
+				Value: SUCCESS_VALUE,
+			}
+		case loop.SET_EVENT_KEY:
+			fallthrough
+		case loop.DELETE_EVENT_KEY:
+			event.ResponseChan <- loop.CacheEventResponse{
+				Ok: true,
+			}
+		default:
+			panic("invalid event type")
 		}
+
 		return
 	}
 
-	if event.Key == "error" {
+	if event.Key == ERROR_KEY {
 		<-el.events
 		event.ErrorChan <- fmt.Errorf("something went wrong")
 	}
@@ -56,35 +70,74 @@ the handleDelete method takes a http.Request and returns a Response
 delete removes the correct value in the cache
 */
 
-// func TestHandleGetReturnsCacheEventResponse(t *testing.T) {
-// 	body, _ := createReqBody("test", nil)
-// 	resp, err := handleGet(&MockEventLoop{}, &http.Request{Body: body})
-// 	if err != nil {
-// 		handleError(t, err)
-// 	}
-// 	assert.IsType(t, loop.CacheEventResponse{}, resp)
-// }
+func TestHandleGet(t *testing.T) {
+	key := SUCCESS_KEY
+	server := createServerWithEventLoop()
 
-// func TestGetHandlerSendsEventToLoop(t *testing.T) {
-// 	eventLoop := &MockEventLoop{events: make(chan *loop.CacheEvent, 1)}
+	resp, err := server.handleGet(key)
+	if err != nil {
+		handleError(t, err)
+	}
 
-// 	expectedKey := "test"
-// 	reqBody := io.NopCloser(strings.NewReader(fmt.Sprintf(`{"key": "%s"}`, expectedKey)))
-// 	_, err := handleGet(eventLoop, &http.Request{Body: reqBody})
-// 	if err != nil {
-// 		handleError(t, err)
-// 	}
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Ok)
+	assert.Equal(t, SUCCESS_VALUE, resp.Value)
+}
 
-// 	assert.True(t, len(eventLoop.events) == 1)
+func TestHandleGetError(t *testing.T) {
+	key := ERROR_KEY
+	server := createServerWithEventLoop()
 
-// 	select {
-// 	case event := <-eventLoop.events:
-// 		assert.Equal(t, expectedKey, event.Key)
-// 		break
-// 	default:
-// 		t.Fatal("No value present in events channel")
-// 	}
-// }
+	_, err := server.handleGet(key)
+
+	assert.NotNil(t, err)
+}
+
+func TestHandleSet(t *testing.T) {
+	key := SUCCESS_KEY
+	value := "test"
+	server := createServerWithEventLoop()
+
+	resp, err := server.handleSet(key, value)
+	if err != nil {
+		handleError(t, err)
+	}
+
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Ok)
+}
+
+func TestHandleSetError(t *testing.T) {
+	key := ERROR_KEY
+	value := "test"
+	server := createServerWithEventLoop()
+
+	_, err := server.handleSet(key, value)
+
+	assert.NotNil(t, err)
+}
+
+func TestHandleDelete(t *testing.T) {
+	key := SUCCESS_KEY
+	server := createServerWithEventLoop()
+
+	resp, err := server.handleDelete(key)
+	if err != nil {
+		handleError(t, err)
+	}
+
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Ok)
+}
+
+func TestHandleDeleteError(t *testing.T) {
+	key := ERROR_KEY
+	server := createServerWithEventLoop()
+
+	_, err := server.handleDelete(key)
+
+	assert.NotNil(t, err)
+}
 
 func TestReadRequestBody(t *testing.T) {
 	expectedKey, expectedValue := "test", "my value"
@@ -104,9 +157,13 @@ func TestReadRequestBody(t *testing.T) {
 
 func TestSendEvent(t *testing.T) {
 	server := createServerWithEventLoop()
-	event, r, e := loop.CreateGetEvent("success")
+	event, r, e := loop.CreateGetEvent(SUCCESS_KEY)
 
-	resp, _ := server.sendEvent(event, r, e)
+	resp, err := server.sendEvent(event, r, e)
+	if err != nil {
+		handleError(t, err)
+	}
+
 	assert.NotNil(t, resp)
 	assert.True(t, resp.Ok)
 	assert.Equal(t, SUCCESS_VALUE, resp.Value)
@@ -115,7 +172,7 @@ func TestSendEvent(t *testing.T) {
 func TestSendEventError(t *testing.T) {
 	el := createMockEventLoop()
 	server := createServer(el)
-	event, r, e := loop.CreateGetEvent("error")
+	event, r, e := loop.CreateGetEvent(ERROR_KEY)
 	_, err := server.sendEvent(event, r, e)
 
 	assert.NotNil(t, err)
