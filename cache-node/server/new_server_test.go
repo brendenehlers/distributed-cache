@@ -74,7 +74,7 @@ func TestHandleGet(t *testing.T) {
 	key := SUCCESS_KEY
 	server := createServerWithEventLoop()
 
-	resp, err := server.handleGet(key)
+	resp, err := server.handleGetEvent(key)
 	if err != nil {
 		handleError(t, err)
 	}
@@ -88,7 +88,7 @@ func TestHandleGetError(t *testing.T) {
 	key := ERROR_KEY
 	server := createServerWithEventLoop()
 
-	_, err := server.handleGet(key)
+	_, err := server.handleGetEvent(key)
 
 	assert.NotNil(t, err)
 }
@@ -98,7 +98,7 @@ func TestHandleSet(t *testing.T) {
 	value := "test"
 	server := createServerWithEventLoop()
 
-	resp, err := server.handleSet(key, value)
+	resp, err := server.handleSetEvent(key, value)
 	if err != nil {
 		handleError(t, err)
 	}
@@ -112,7 +112,7 @@ func TestHandleSetError(t *testing.T) {
 	value := "test"
 	server := createServerWithEventLoop()
 
-	_, err := server.handleSet(key, value)
+	_, err := server.handleSetEvent(key, value)
 
 	assert.NotNil(t, err)
 }
@@ -121,7 +121,7 @@ func TestHandleDelete(t *testing.T) {
 	key := SUCCESS_KEY
 	server := createServerWithEventLoop()
 
-	resp, err := server.handleDelete(key)
+	resp, err := server.handleDeleteEvent(key)
 	if err != nil {
 		handleError(t, err)
 	}
@@ -134,7 +134,7 @@ func TestHandleDeleteError(t *testing.T) {
 	key := ERROR_KEY
 	server := createServerWithEventLoop()
 
-	_, err := server.handleDelete(key)
+	_, err := server.handleDeleteEvent(key)
 
 	assert.NotNil(t, err)
 }
@@ -176,6 +176,44 @@ func TestSendEventError(t *testing.T) {
 	_, err := server.sendEvent(event, r, e)
 
 	assert.NotNil(t, err)
+}
+
+func TestEncodeResponse(t *testing.T) {
+	expectedMsg := "test response"
+	resp := Response{
+		Message: expectedMsg,
+	}
+
+	enc, err := encodeResponse(resp)
+
+	assert.Nil(t, err)
+	assert.Contains(t, enc.String(), expectedMsg)
+}
+
+func TestCreateErrorResponse(t *testing.T) {
+	errMsg := "my fancy error"
+	err := fmt.Errorf(errMsg)
+	resp := createErrorResponse(err)
+
+	assert.Equal(t, ERROR_MSG, resp.Message)
+	assert.Equal(t, errMsg, resp.Error)
+}
+
+func TestCreateGetResponseOk(t *testing.T) {
+	var val loop.CacheEntry = "test"
+	resp := createGetResponse(true, val)
+
+	assert.NotNil(t, resp.Value)
+	assert.Equal(t, VALUE_FOUND_MSG, resp.Message)
+	assert.Equal(t, val, resp.Value)
+}
+
+func TestCreateGetResponseNotOk(t *testing.T) {
+	var val loop.CacheEntry = "test"
+	resp := createGetResponse(false, val)
+
+	assert.Nil(t, resp.Value)
+	assert.Equal(t, VALUE_NOT_FOUND_MSG, resp.Message)
 }
 
 func createServer(el EventLoop) *Server {
