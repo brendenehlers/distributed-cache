@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+const (
+	SUCCESS_VALUE = "my value"
+)
+
 type MockEventLoop struct {
 	events chan *loop.CacheEvent
 }
@@ -22,7 +26,7 @@ func (el *MockEventLoop) Send(event *loop.CacheEvent) {
 		<-el.events
 		event.ResponseChan <- loop.CacheEventResponse{
 			Ok:    true,
-			Value: "my value",
+			Value: SUCCESS_VALUE,
 		}
 		return
 	}
@@ -96,6 +100,44 @@ func TestReadRequestBody(t *testing.T) {
 
 	assert.Equal(t, expectedKey, data.Key)
 	assert.Equal(t, expectedValue, data.Value)
+}
+
+func TestSendEvent(t *testing.T) {
+	server := createServerWithEventLoop()
+	event, r, e := loop.CreateGetEvent("success")
+
+	resp, _ := server.sendEvent(event, r, e)
+	assert.NotNil(t, resp)
+	assert.True(t, resp.Ok)
+	assert.Equal(t, SUCCESS_VALUE, resp.Value)
+}
+
+func TestSendEventError(t *testing.T) {
+	el := createMockEventLoop()
+	server := createServer(el)
+	event, r, e := loop.CreateGetEvent("error")
+	_, err := server.sendEvent(event, r, e)
+
+	assert.NotNil(t, err)
+}
+
+func createServer(el EventLoop) *Server {
+	return &Server{
+		eventLoop: el,
+	}
+}
+
+func createServerWithEventLoop() *Server {
+	el := createMockEventLoop()
+	return &Server{
+		eventLoop: el,
+	}
+}
+
+func createMockEventLoop() *MockEventLoop {
+	return &MockEventLoop{
+		events: make(chan *loop.CacheEvent, 1),
+	}
 }
 
 func createReqBody(key string, value any) (io.ReadCloser, error) {
