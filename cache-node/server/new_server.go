@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 
 	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
@@ -16,8 +17,8 @@ const (
 )
 
 type Server struct {
-	http.Server
-	eventLoop EventLoop
+	httpServer *http.Server
+	eventLoop  EventLoop
 }
 
 type RequestBody struct {
@@ -29,6 +30,29 @@ type Response struct {
 	Error   string          `json:"error"`
 	Message string          `json:"message"`
 	Value   loop.CacheEntry `json:"value"`
+}
+
+func NewServer(loop EventLoop, addr string) *Server {
+	handler := http.NewServeMux()
+
+	server := &Server{
+		eventLoop: loop,
+		httpServer: &http.Server{
+			Addr:    addr,
+			Handler: handler,
+		},
+	}
+
+	handler.HandleFunc("POST /get", server.getHandler)
+
+	return server
+}
+
+func (s *Server) Run() {
+	go s.eventLoop.Run()
+
+	log.Printf("Server listening on '%v'", s.httpServer.Addr)
+	s.httpServer.ListenAndServe()
 }
 
 func (s *Server) getHandler(w http.ResponseWriter, r *http.Request) {
