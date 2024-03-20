@@ -1,206 +1,174 @@
 package server
 
-// import (
-// 	"encoding/json"
-// 	"fmt"
-// 	"io"
-// 	"log"
-// 	"net/http"
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"log"
+	"net/http"
 
-// 	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
-// )
+	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
+)
 
-// type Server struct {
-// 	http.Server
-// 	loop EventLoop
-// }
+const (
+	ERROR_MSG           = "An error has occurred"
+	VALUE_FOUND_MSG     = "Value found"
+	VALUE_NOT_FOUND_MSG = "Value not found"
+)
 
-// type Response struct {
-// 	Error   error           `json:"error"`
-// 	Message string          `json:"message"`
-// 	Value   loop.CacheEntry `json:"value"`
-// }
+type Server struct {
+	httpServer *http.Server
+	eventLoop  EventLoop
+}
 
-// func NewServer(loop EventLoop, addr string) *Server {
-// 	handler := createHandler(loop)
+type RequestBody struct {
+	Key   string          `json:"key"`
+	Value loop.CacheEntry `json:"value"`
+}
 
-// 	return &Server{
-// 		Server: http.Server{
-// 			Addr:    addr,
-// 			Handler: handler,
-// 		},
-// 		loop: loop,
-// 	}
-// }
+type Response struct {
+	Error   string          `json:"error"`
+	Message string          `json:"message"`
+	Value   loop.CacheEntry `json:"value"`
+}
 
-// func createHandler(loop EventLoop) http.Handler {
-// 	return http.NewServeMux()
-// }
+func NewServer(loop EventLoop, addr string) *Server {
+	handler := http.NewServeMux()
 
-// func (server *Server) StartServerAndLoop() {
-// 	mux := http.NewServeMux()
+	server := &Server{
+		eventLoop: loop,
+		httpServer: &http.Server{
+			Addr:    addr,
+			Handler: handler,
+		},
+	}
 
-// 	mux.HandleFunc("POST /get", func(w http.ResponseWriter, r *http.Request) {
-// 		defer errorCatcher(w)
+	handler.HandleFunc("POST /get", server.getHandler)
 
-// 		if val, ok := server.getHandler(r); ok {
-// 			writeOkayResponseWithValue(w, val)
-// 		} else {
-// 			writeValueNotFoundResponse(w)
-// 		}
-// 	})
+	return server
+}
 
-// 	mux.HandleFunc("POST /set", func(w http.ResponseWriter, r *http.Request) {
-// 		defer errorCatcher(w)
+func (s *Server) Run() {
+	go s.eventLoop.Run()
 
-// 		if ok := server.setHandler(r); ok {
-// 			writeOkayResponse(w)
-// 		} else {
-// 			panic("unexpected not okay response from setHandler")
-// 		}
-// 	})
+	log.Printf("Server listening on '%v'", s.httpServer.Addr)
+	s.httpServer.ListenAndServe()
+}
 
-// 	mux.HandleFunc("POST /delete", func(w http.ResponseWriter, r *http.Request) {
-// 		defer errorCatcher(w)
+func (s *Server) Stop() {
+	s.eventLoop.Stop()
+	s.httpServer.Shutdown(context.Background())
+}
 
-// 		if ok := server.deleteHandler(r); ok {
-// 			writeOkayResponse(w)
-// 		} else {
-// 			panic("unexpected not okay response from deleteHandler")
-// 		}
-// 	})
+func (s *Server) getHandler(w http.ResponseWriter, r *http.Request) {
+	var data RequestBody
+	err := decodeRequestBody(r.Body, &data)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
 
-// 	logger := http.NewServeMux()
-// 	logger.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-// 		log.Printf("[%s] %s\n", r.Method, r.URL.Path)
-// 		mux.ServeHTTP(w, r)
-// 	})
+	cacheData, err := s.handleGetEvent(data.Key)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
 
-// }
+	buf, err := encodeResponse(createGetResponse(cacheData.Ok, cacheData.Value))
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
 
-// func errorCatcher(w http.ResponseWriter) {
-// 	if r := recover(); r != nil {
-// 		writeError(w, r)
-// 	}
-// }
+	w.Write(buf.Bytes())
+}
 
-// func writeError(w http.ResponseWriter, data any) {
-// 	resp := buildErrorResponse(data)
+func (s *Server) handleGetEvent(key string) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateGetEvent(key)
 
-// 	w.WriteHeader(http.StatusInternalServerError)
-// 	writeJson(w, resp)
-// }
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
 
-// func buildErrorResponse(data any) Response {
-// 	switch data := data.(type) {
-// 	case error:
-// 		return Response{
-// 			Error:   data,
-// 			Message: data.Error(),
-// 		}
-// 	default:
-// 		return Response{
-// 			Error:   fmt.Errorf(data.(string)),
-// 			Message: fmt.Sprint(data.(string)),
-// 		}
-// 	}
-// }
+	return resp, nil
+}
 
-// func (server *Server) getHandler(r *http.Request) (loop.CacheEntry, bool) {
-// 	var data struct {
-// 		Key string `json:"key"`
-// 	}
-// 	readRequestBody(r.Body, &data)
+func (s *Server) handleSetEvent(key string, value loop.CacheEntry) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateSetEvent(key, value)
 
-// 	event, responseChan, errorChan := loop.CreateGetEvent(data.Key)
-// 	go server.loop.Send(event)
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
 
-// 	select {
-// 	case resp := <-responseChan:
-// 		return parseEventResponse(resp)
-// 	case err := <-errorChan:
-// 		panic(err)
-// 	}
-// }
+	return resp, nil
+}
 
-// func (server *Server) setHandler(r *http.Request) bool {
-// 	var data struct {
-// 		Key   string          `json:"key"`
-// 		Value loop.CacheEntry `json:"value"`
-// 	}
-// 	readRequestBody(r.Body, &data)
+func (s *Server) handleDeleteEvent(key string) (loop.CacheEventResponse, error) {
+	event, r, e := loop.CreateDeleteEvent(key)
 
-// 	event, responseChan, errorChan := loop.CreateSetEvent(data.Key, data.Value)
-// 	go server.loop.Send(event)
+	resp, err := s.sendEvent(event, r, e)
+	if err != nil {
+		return loop.CacheEventResponse{}, err
+	}
 
-// 	select {
-// 	case resp := <-responseChan:
-// 		_, ok := parseEventResponse(resp)
-// 		return ok
-// 	case err := <-errorChan:
-// 		panic(err)
-// 	}
-// }
+	return resp, nil
+}
 
-// func (server *Server) deleteHandler(r *http.Request) bool {
-// 	var data struct {
-// 		Key string `json:"key"`
-// 	}
-// 	readRequestBody(r.Body, &data)
+func (s *Server) sendEvent(
+	event *loop.CacheEvent,
+	respChan chan loop.CacheEventResponse,
+	errChan chan error,
+) (loop.CacheEventResponse, error) {
+	s.eventLoop.Send(event)
 
-// 	event, responseChan, errorChan := loop.CreateDeleteEvent(data.Key)
-// 	go server.loop.Send(event)
+	select {
+	case resp := <-respChan:
+		return resp, nil
+	case err := <-errChan:
+		return loop.CacheEventResponse{}, err
+	}
+}
 
-// 	select {
-// 	case resp := <-responseChan:
-// 		_, ok := parseEventResponse(resp)
-// 		return ok
-// 	case err := <-errorChan:
-// 		panic(err)
-// 	}
-// }
+func decodeRequestBody(r io.ReadCloser, data *RequestBody) error {
+	defer r.Close()
+	return json.NewDecoder(r).Decode(data)
+}
 
-// func readRequestBody(r io.ReadCloser, v any) {
-// 	defer r.Close()
-// 	err := json.NewDecoder(r).Decode(v)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
+func writeErrorResponse(w http.ResponseWriter, err error) {
+	w.WriteHeader(http.StatusInternalServerError)
+	enc, _ := encodeResponse(createErrorResponse(err))
+	w.Write(enc.Bytes())
+}
 
-// func parseEventResponse(eventResponse loop.CacheEventResponse) (loop.CacheEntry, bool) {
-// 	return eventResponse.Value, eventResponse.Ok
-// }
+func createErrorResponse(err error) Response {
+	return Response{
+		Error:   err.Error(),
+		Message: ERROR_MSG,
+	}
+}
 
-// func writeValueNotFoundResponse(w http.ResponseWriter) {
-// 	resp := Response{
-// 		Message: "Value was not found",
-// 	}
+func createGetResponse(ok bool, value loop.CacheEntry) Response {
+	if ok {
+		return Response{
+			Message: VALUE_FOUND_MSG,
+			Value:   value,
+		}
+	} else {
+		return Response{
+			Message: VALUE_NOT_FOUND_MSG,
+		}
+	}
+}
 
-// 	w.WriteHeader(http.StatusNotFound)
-// 	writeJson(w, resp)
-// }
+func encodeResponse(resp Response) (*bytes.Buffer, error) {
+	buf := bytes.NewBuffer([]byte{})
+	err := json.NewEncoder(buf).Encode(resp)
+	if err != nil {
+		return nil, err
+	}
 
-// func writeOkayResponse(w http.ResponseWriter) {
-// 	resp := Response{
-// 		Message: "Success",
-// 	}
-
-// 	writeJson(w, resp)
-// }
-
-// func writeOkayResponseWithValue(w http.ResponseWriter, val loop.CacheEntry) {
-// 	resp := Response{
-// 		Message: "Success",
-// 		Value:   val,
-// 	}
-
-// 	writeJson(w, resp)
-// }
-
-// func writeJson(w io.Writer, data any) {
-// 	err := json.NewEncoder(w).Encode(data)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// }
+	return buf, nil
+}

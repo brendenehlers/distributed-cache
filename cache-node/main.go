@@ -37,29 +37,4 @@ func main() {
 	server := server.NewServer(eventLoop, ":8080")
 
 	server.Run()
-
-	// go eventLoop.Run()
-
-	// event1, resChan1, errChan1 := loop.CreateSetEvent("hello", "world")
-	// eventLoop.Send(event1)
-
-	// select {
-	// case resp := <-resChan1:
-	// 	fmt.Printf("set ok: %v, val: %v\n", resp.Ok, resp.Value)
-	// case err := <-errChan1:
-	// 	panic(err)
-	// }
-
-	// event2, resChan2, errChan2 := loop.CreateGetEvent("hello")
-	// eventLoop.Send(event2)
-
-	// select {
-	// case resp := <-resChan2:
-	// 	fmt.Printf("get ok: %v, val: %v\n", resp.Ok, resp.Value)
-	// case err := <-errChan2:
-	// 	panic(err)
-	// }
-
-	// server := presentation.NewServer(loop, ":8080")
-	// server.StartServerAndLoop()
 }
