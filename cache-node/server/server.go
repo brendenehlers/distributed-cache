@@ -15,6 +15,8 @@ const (
 	ERROR_MSG           = "An error has occurred"
 	VALUE_FOUND_MSG     = "Value found"
 	VALUE_NOT_FOUND_MSG = "Value not found"
+	VALUE_SET_MSG       = "Value set successfully"
+	VALUE_DELETED_MSG   = "Value deleted successfully"
 )
 
 type Server struct {
@@ -45,6 +47,8 @@ func NewServer(loop EventLoop, addr string) *Server {
 	}
 
 	handler.HandleFunc("POST /get", server.getHandler)
+	handler.HandleFunc("POST /set", server.setHandler)
+	handler.HandleFunc("POST /delete", server.deleteHandler)
 
 	return server
 }
@@ -62,8 +66,7 @@ func (s *Server) Stop() {
 }
 
 func (s *Server) getHandler(w http.ResponseWriter, r *http.Request) {
-	var data RequestBody
-	err := decodeRequestBody(r.Body, &data)
+	data, err := decodeRequestBody(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
 		return
@@ -95,6 +98,41 @@ func (s *Server) handleGetEvent(key string) (loop.CacheEventResponse, error) {
 	return resp, nil
 }
 
+func createGetResponse(ok bool, value loop.CacheEntry) Response {
+	if ok {
+		return Response{
+			Message: VALUE_FOUND_MSG,
+			Value:   value,
+		}
+	} else {
+		return Response{
+			Message: VALUE_NOT_FOUND_MSG,
+		}
+	}
+}
+
+func (s *Server) setHandler(w http.ResponseWriter, r *http.Request) {
+	data, err := decodeRequestBody(r.Body)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	_, err = s.handleSetEvent(data.Key, data.Value)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	buf, err := encodeResponse(createSetResponse())
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	w.Write(buf.Bytes())
+}
+
 func (s *Server) handleSetEvent(key string, value loop.CacheEntry) (loop.CacheEventResponse, error) {
 	event, r, e := loop.CreateSetEvent(key, value)
 
@@ -104,6 +142,34 @@ func (s *Server) handleSetEvent(key string, value loop.CacheEntry) (loop.CacheEv
 	}
 
 	return resp, nil
+}
+
+func createSetResponse() Response {
+	return Response{
+		Message: VALUE_SET_MSG,
+	}
+}
+
+func (s *Server) deleteHandler(w http.ResponseWriter, r *http.Request) {
+	data, err := decodeRequestBody(r.Body)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	_, err = s.handleDeleteEvent(data.Key)
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	buf, err := encodeResponse(createDeleteResponse())
+	if err != nil {
+		writeErrorResponse(w, err)
+		return
+	}
+
+	w.Write(buf.Bytes())
 }
 
 func (s *Server) handleDeleteEvent(key string) (loop.CacheEventResponse, error) {
@@ -117,11 +183,18 @@ func (s *Server) handleDeleteEvent(key string) (loop.CacheEventResponse, error) 
 	return resp, nil
 }
 
+func createDeleteResponse() Response {
+	return Response{
+		Message: VALUE_DELETED_MSG,
+	}
+}
+
 func (s *Server) sendEvent(
 	event *loop.CacheEvent,
 	respChan chan loop.CacheEventResponse,
 	errChan chan error,
 ) (loop.CacheEventResponse, error) {
+	log.Printf("Sending Event (%v) key: '%v'", event.Type, event.Key)
 	s.eventLoop.Send(event)
 
 	select {
@@ -132,9 +205,11 @@ func (s *Server) sendEvent(
 	}
 }
 
-func decodeRequestBody(r io.ReadCloser, data *RequestBody) error {
+func decodeRequestBody(r io.ReadCloser) (RequestBody, error) {
 	defer r.Close()
-	return json.NewDecoder(r).Decode(data)
+	var data RequestBody
+	err := json.NewDecoder(r).Decode(&data)
+	return data, err
 }
 
 func writeErrorResponse(w http.ResponseWriter, err error) {
@@ -147,19 +222,6 @@ func createErrorResponse(err error) Response {
 	return Response{
 		Error:   err.Error(),
 		Message: ERROR_MSG,
-	}
-}
-
-func createGetResponse(ok bool, value loop.CacheEntry) Response {
-	if ok {
-		return Response{
-			Message: VALUE_FOUND_MSG,
-			Value:   value,
-		}
-	} else {
-		return Response{
-			Message: VALUE_NOT_FOUND_MSG,
-		}
 	}
 }
 

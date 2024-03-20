@@ -146,8 +146,8 @@ func TestReadRequestBody(t *testing.T) {
 		handleError(t, err)
 	}
 
-	data := RequestBody{}
-	if err = decodeRequestBody(r, &data); err != nil {
+	data, err := decodeRequestBody(r)
+	if err != nil {
 		handleError(t, err)
 	}
 
@@ -220,6 +220,18 @@ func createServer(el EventLoop) *Server {
 	return &Server{
 		eventLoop: el,
 	}
+}
+
+func TestCreateSetResponse(t *testing.T) {
+	resp := createSetResponse()
+
+	assert.Equal(t, VALUE_SET_MSG, resp.Message)
+}
+
+func TestCreateDeleteResponse(t *testing.T) {
+	resp := createDeleteResponse()
+
+	assert.Equal(t, VALUE_DELETED_MSG, resp.Message)
 }
 
 func createServerWithEventLoop() *Server {

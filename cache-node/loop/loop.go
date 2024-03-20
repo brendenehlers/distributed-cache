@@ -31,7 +31,6 @@ func (eventLoop *EventLoopImpl) Stop() {
 }
 
 func (eventLoop *EventLoopImpl) Run() {
-	// this function is untested but the component methods are well tested
 	for {
 		code := eventLoop.multiplexChannels()
 

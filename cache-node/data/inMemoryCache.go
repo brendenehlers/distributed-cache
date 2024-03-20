@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/gob"
-	"fmt"
 	"sync"
 )
 
@@ -220,7 +219,6 @@ func (c *InMemoryCache[K, V]) findValueInCache(key K, index uint32) *cacheEntry[
 
 		// found a nil entry before the key
 		if entry == nil {
-			fmt.Println("cache miss")
 			return nil
 		}
 
@@ -229,7 +227,6 @@ func (c *InMemoryCache[K, V]) findValueInCache(key K, index uint32) *cacheEntry[
 		x += 1
 	}
 
-	fmt.Println("cache hit")
 	return c.cache[index]
 }
 
