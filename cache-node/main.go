@@ -30,11 +30,10 @@ func NewInMemoryCacheAdapter(cache *data.InMemoryCache[string, loop.CacheEntry])
 }
 
 func main() {
-
 	inMemoryCache := data.NewInMemoryCache[string, loop.CacheEntry](data.Options{})
 	cache := NewInMemoryCacheAdapter(inMemoryCache)
 	eventLoop := loop.NewEventLoop(cache)
-	server := server.NewServer(eventLoop, ":8080")
+	server := server.New(eventLoop, ":8080")
 
 	server.Run()
 }

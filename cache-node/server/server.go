@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -19,11 +18,6 @@ const (
 	VALUE_DELETED_MSG   = "Value deleted successfully"
 )
 
-type Server struct {
-	httpServer *http.Server
-	eventLoop  EventLoop
-}
-
 type RequestBody struct {
 	Key   string          `json:"key"`
 	Value loop.CacheEntry `json:"value"`
@@ -35,37 +29,7 @@ type Response struct {
 	Value   loop.CacheEntry `json:"value"`
 }
 
-func NewServer(loop EventLoop, addr string) *Server {
-	handler := http.NewServeMux()
-
-	server := &Server{
-		eventLoop: loop,
-		httpServer: &http.Server{
-			Addr:    addr,
-			Handler: handler,
-		},
-	}
-
-	handler.HandleFunc("POST /get", server.getHandler)
-	handler.HandleFunc("POST /set", server.setHandler)
-	handler.HandleFunc("POST /delete", server.deleteHandler)
-
-	return server
-}
-
-func (s *Server) Run() {
-	go s.eventLoop.Run()
-
-	log.Printf("Server listening on '%v'", s.httpServer.Addr)
-	s.httpServer.ListenAndServe()
-}
-
-func (s *Server) Stop() {
-	s.eventLoop.Stop()
-	s.httpServer.Shutdown(context.Background())
-}
-
-func (s *Server) getHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) GetHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := decodeRequestBody(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
@@ -111,7 +75,7 @@ func createGetResponse(ok bool, value loop.CacheEntry) Response {
 	}
 }
 
-func (s *Server) setHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) SetHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := decodeRequestBody(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
@@ -150,7 +114,7 @@ func createSetResponse() Response {
 	}
 }
 
-func (s *Server) deleteHandler(w http.ResponseWriter, r *http.Request) {
+func (s *Server) DeleteHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := decodeRequestBody(r.Body)
 	if err != nil {
 		writeErrorResponse(w, err)
