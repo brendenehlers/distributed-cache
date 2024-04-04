@@ -1,39 +1,29 @@
 package main
 
 import (
+	"flag"
+	"fmt"
+
+	"github.com/brendenehlers/go-distributed-cache/cache-node/adapter"
 	"github.com/brendenehlers/go-distributed-cache/cache-node/data"
 	"github.com/brendenehlers/go-distributed-cache/cache-node/loop"
 	"github.com/brendenehlers/go-distributed-cache/cache-node/server"
 )
 
-// no reason for this other than I wanted to practice the adapter pattern
-type InMemoryCacheAdapter struct {
-	inMemoryCache *data.InMemoryCache[string, loop.CacheEntry]
-}
+var (
+	portFlag = flag.Int("port", 8080, "port for server to listen on")
+	hostnameFlag = flag.String("hostname", "localhost", "hostname for the server")
+)
 
-func (adapter *InMemoryCacheAdapter) Get(key string) (loop.CacheEntry, bool) {
-	return adapter.inMemoryCache.Read(key)
-}
+func main() {	
+	flag.Parse()
 
-func (adapter *InMemoryCacheAdapter) Set(key string, val loop.CacheEntry) error {
-	return adapter.inMemoryCache.Insert(key, val)
-}
-
-func (adapter *InMemoryCacheAdapter) Delete(key string) error {
-	return adapter.inMemoryCache.Remove(key)
-}
-
-func NewInMemoryCacheAdapter(cache *data.InMemoryCache[string, loop.CacheEntry]) loop.Cache {
-	return &InMemoryCacheAdapter{
-		inMemoryCache: cache,
-	}
-}
-
-func main() {
 	inMemoryCache := data.NewInMemoryCache[string, loop.CacheEntry](data.Options{})
-	cache := NewInMemoryCacheAdapter(inMemoryCache)
+	cache := adapter.NewInMemoryCacheAdapter(inMemoryCache)
 	eventLoop := loop.NewEventLoop(cache)
-	server := server.New(eventLoop, ":8080")
+
+	host := fmt.Sprintf("%s:%d", *hostnameFlag, *portFlag)
+	server := server.New(eventLoop, host)
 
 	server.Run()
 }

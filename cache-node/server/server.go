@@ -24,9 +24,9 @@ type RequestBody struct {
 }
 
 type Response struct {
-	Error   string          `json:"error"`
+	Error   string          `json:"error,omitempty"`
 	Message string          `json:"message"`
-	Value   loop.CacheEntry `json:"value"`
+	Value   loop.CacheEntry `json:"value,omitempty"`
 }
 
 func (s *Server) GetHandler(w http.ResponseWriter, r *http.Request) {
