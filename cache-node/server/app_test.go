@@ -16,6 +16,6 @@ func TestNew(t *testing.T) {
 	server := New(el, expectedAddr)
 
 	assert.NotNil(t, server.eventLoop)
-	assert.NotNil(t, server.httpServer)
-	assert.Equal(t, expectedAddr, server.httpServer.Addr)
+	assert.NotNil(t, server.Server)
+	assert.Equal(t, expectedAddr, server.Server.Addr)
 }

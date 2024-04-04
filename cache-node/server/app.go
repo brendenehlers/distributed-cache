@@ -7,7 +7,7 @@ import (
 )
 
 type Server struct {
-	httpServer *http.Server
+	*http.Server
 	eventLoop  EventLoop
 }
 
@@ -15,11 +15,11 @@ func New(loop EventLoop, addr string) *Server {
 	handler := http.NewServeMux()
 
 	server := &Server{
-		eventLoop: loop,
-		httpServer: &http.Server{
+		Server: &http.Server{
 			Addr:    addr,
 			Handler: handler,
 		},
+		eventLoop: loop,
 	}
 
 	handler.HandleFunc("POST /get", server.GetHandler)
@@ -32,11 +32,11 @@ func New(loop EventLoop, addr string) *Server {
 func (s *Server) Run() {
 	go s.eventLoop.Run()
 
-	log.Printf("Server listening on '%v'", s.httpServer.Addr)
-	s.httpServer.ListenAndServe()
+	log.Printf("Server listening on '%v'", s.Server.Addr)
+	s.Server.ListenAndServe()
 }
 
 func (s *Server) Stop() {
 	s.eventLoop.Stop()
-	s.httpServer.Shutdown(context.Background())
+	s.Server.Shutdown(context.Background())
 }
