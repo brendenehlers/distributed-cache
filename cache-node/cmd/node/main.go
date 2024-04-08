@@ -11,11 +11,11 @@ import (
 )
 
 var (
-	portFlag = flag.Int("port", 8080, "port for server to listen on")
+	portFlag     = flag.Int("port", 8080, "port for server to listen on")
 	hostnameFlag = flag.String("hostname", "localhost", "hostname for the server")
 )
 
-func main() {	
+func main() {
 	flag.Parse()
 
 	inMemoryCache := data.NewInMemoryCache[string, loop.CacheEntry](data.Options{})
@@ -23,7 +23,10 @@ func main() {
 	eventLoop := loop.NewEventLoop(cache)
 
 	host := fmt.Sprintf("%s:%d", *hostnameFlag, *portFlag)
-	server := server.New(eventLoop, host)
+
+	registryUrl := "http://localhost:8081"
+
+	server := server.New(eventLoop, host, registryUrl)
 
 	server.Run()
 }

@@ -12,7 +12,7 @@ func logRequest(next http.HandlerFunc) http.HandlerFunc {
 
 		defer func() {
 			dur := time.Since(start)
-			log.Printf("[%s] %s %dms", r.Method, r.URL.Path, dur.Milliseconds())
+			log.Printf("[%s] %s %dμs", r.Method, r.URL.Path, dur.Microseconds())
 		}()
 
 		next.ServeHTTP(w, r)

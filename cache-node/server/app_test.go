@@ -12,10 +12,12 @@ func TestNew(t *testing.T) {
 		events: make(chan *loop.CacheEvent),
 	}
 	expectedAddr := ":8080"
+	expectedReg := "asdf"
 
-	server := New(el, expectedAddr)
+	server := New(el, expectedAddr, expectedReg)
 
 	assert.NotNil(t, server.eventLoop)
 	assert.NotNil(t, server.Server)
 	assert.Equal(t, expectedAddr, server.Server.Addr)
+	assert.Equal(t, expectedReg, server.registryUrl)
 }
